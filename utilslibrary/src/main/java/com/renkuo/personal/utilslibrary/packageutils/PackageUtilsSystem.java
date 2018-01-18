@@ -1,4 +1,4 @@
-package systempackageutils;
+package com.renkuo.personal.utilslibrary.packageutils;
 
 import android.app.Application;
 import android.content.Context;
@@ -11,9 +11,11 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.Map;
 
-
-public class SystemPackageUtils {
-//    private static String TAG = SystemPackageUtils.class.getSimpleName();
+/**
+ * 提供获取指定包名的ClassLoader,获取Dalvik和system的Context，设置activity当前线程等
+ */
+public class PackageUtilsSystem {
+//    private static String TAG = PackageUtilsSystem.class.getSimpleName();
 
     private static Object sCurrentActivityThread = null;
     private final static Object sCurrentActivityThreadLock = new Object();
@@ -28,7 +30,7 @@ public class SystemPackageUtils {
 
     //private static final HashMap<String, ClassLoader> mPackages = new HashMap<>();
 
-    private SystemPackageUtils() {
+    private PackageUtilsSystem() {
         if (Build.VERSION.SDK_INT >= 18) {
             setCurrentActivityThread();
             setApplication();
@@ -60,6 +62,10 @@ public class SystemPackageUtils {
         }
     }
 
+    /**
+     * 获取系统的Context
+     * @return
+     */
     public Context getSystemContext() {
         if (sSystemContext == null) {
             synchronized (sSystemContextLock) {
@@ -87,6 +93,9 @@ public class SystemPackageUtils {
         return sSystemContext;
     }
 
+    /**
+     * 设置当前Activity线程
+     */
     public void setCurrentActivityThread() {
         if (sCurrentActivityThread == null) {
             synchronized (sCurrentActivityThreadLock) {
@@ -106,6 +115,11 @@ public class SystemPackageUtils {
         }
     }
 
+    /**
+     * 获取指定包名对应的ClassLoader
+     * @param packageName
+     * @return
+     */
     public ClassLoader getPackageClassLoader(String packageName) {
         try {
             Field packageField = sCurrentActivityThread.getClass().getDeclaredField("mPackages");
@@ -124,16 +138,16 @@ public class SystemPackageUtils {
         return null;
     }
 
-//    private static final SystemPackageUtils mInstance = new SystemPackageUtils();
+//    private static final PackageUtilsSystem mInstance = new PackageUtilsSystem();
 
     /**
      * 静态内部类单例模式
      */
     private static class SingletonHolder {
-        private static final SystemPackageUtils INSTANCE = new SystemPackageUtils();
+        private static final PackageUtilsSystem INSTANCE = new PackageUtilsSystem();
     }
 
-    public static synchronized SystemPackageUtils getInstance() {
+    public static synchronized PackageUtilsSystem getInstance() {
         return SingletonHolder.INSTANCE;
     }
 
@@ -155,6 +169,10 @@ public class SystemPackageUtils {
         return friendContext;
     }
 
+    /**
+     * 获取Dalvik()的context
+     * @return
+     */
     public static Context getContext_Dalvik() {
         Context context = null;
         try {
