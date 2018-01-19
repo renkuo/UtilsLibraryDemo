@@ -12,6 +12,7 @@ import android.content.pm.FeatureInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
+import android.content.pm.Signature;
 import android.content.res.AssetManager;
 import android.content.res.Resources;
 import android.graphics.drawable.Drawable;
@@ -22,13 +23,19 @@ import android.support.annotation.RequiresPermission;
 import android.text.TextUtils;
 import android.util.DisplayMetrics;
 
+import com.renkuo.personal.utilslibrary.ioutils.IoUtils;
 import com.renkuo.personal.utilslibrary.log.QLog;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Type;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -600,5 +607,71 @@ public final class PackageUtils {
         return new String[0];
     }
 
+    /**
+     * 获取签名md5
+     * @param mContext
+     * @return
+     */
+    public static String getSignMd5(Context mContext) {
+        try {
+            PackageManager pMgr = mContext.getPackageManager();
+            PackageInfo packageInfo = pMgr.getPackageInfo(mContext.getPackageName(), PackageManager.GET_SIGNATURES);
+            Signature[] signs = packageInfo.signatures;
+            return parseSign("MD5", signs[0].toByteArray());
+        } catch (PackageManager.NameNotFoundException e) {
+        }
+        return "";
+    }
+
+
+    /**
+     * 获取签名sha1
+     * @param context
+     * @return
+     */
+    public static String getSignSha1(Context context) {
+        ByteArrayInputStream bis = null;
+        try {
+            PackageInfo packageInfo = context.getPackageManager().getPackageInfo(context.getPackageName(), PackageManager.GET_SIGNATURES);
+            Signature[] signs = packageInfo.signatures;
+            CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
+            bis = new ByteArrayInputStream(signs[0].toByteArray());
+            X509Certificate cert = (X509Certificate) certFactory.generateCertificate(bis);
+            return parseSign("SHA1", cert.getEncoded());
+        } catch (Exception e) {
+        } finally {
+            IoUtils.close(bis);
+        }
+        return "";
+    }
+
+    private static String parseSign(String algorithm, byte[] input) {
+        try {
+            MessageDigest mD = MessageDigest.getInstance(algorithm);
+            mD.reset();
+            mD.update(input);
+            return encodeHexString(mD.digest());
+        } catch (NoSuchAlgorithmException e) {
+            return null;
+        }
+    }
+
+    public static String encodeHexString(final byte[] data) {
+        return new String(encodeHex(data, DIGITS_UPPER));
+    }
+
+    protected static char[] encodeHex(final byte[] data, final char[] toDigits) {
+        final int l = data.length;
+        final char[] out = new char[l << 1];
+        // two characters form the hex value.
+        for (int i = 0, j = 0; i < l; i++) {
+            out[j++] = toDigits[(0xF0 & data[i]) >>> 4];
+            out[j++] = toDigits[0x0F & data[i]];
+        }
+        return out;
+    }
+
+    private static final char[] DIGITS_UPPER =
+            {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
 
 }

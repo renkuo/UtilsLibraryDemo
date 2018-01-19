@@ -20,6 +20,10 @@ import java.util.regex.Pattern;
 
 public class CpuUtils {
 
+    private CpuUtils(){
+
+    }
+
     public static CpuInfo buildCpuInfo(float cpuUsage) {
         CpuInfo cpuInfo = new CpuInfo();
         cpuInfo.setCorenum(getNumCores());

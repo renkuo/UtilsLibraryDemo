@@ -5,6 +5,8 @@ import android.provider.Settings;
 
 public class UsbUtils {
 
+    private UsbUtils(){}
+
     /**
      * 设备中的Usb Debuging模式是否打开
      *
