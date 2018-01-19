@@ -26,7 +26,9 @@ import com.renkuo.personal.utilslibrary.log.QLog;
 import com.renkuo.personal.utilslibrary.packageutils.model.AndroidAppProcess;
 import com.renkuo.personal.utilslibrary.packageutils.model.AndroidProcess;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -163,6 +165,24 @@ public class ProcessManager {
         }
         ActivityManager am = (ActivityManager) ctx.getSystemService(Context.ACTIVITY_SERVICE);
         return am.getRunningAppProcesses();
+    }
+
+    /**
+     * 获取进程名称
+     * @param pid
+     * @return
+     */
+    public static String getProcessName(int pid) {
+        try {
+            File file = new File("/proc/" + pid + "/cmdline");
+            BufferedReader reader = new BufferedReader(new FileReader(file));
+            String processName = reader.readLine().trim();
+            reader.close();
+            return processName;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return "";
+        }
     }
 
     private ProcessManager() {
