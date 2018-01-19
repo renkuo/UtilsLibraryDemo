@@ -16,6 +16,7 @@ import android.text.TextUtils;
 import android.widget.Toast;
 
 import com.renkuo.personal.utilslibrary.log.QLog;
+import com.renkuo.personal.utilslibrary.packageutils.model.AndroidAppProcess;
 
 import java.util.Collections;
 import java.util.Comparator;
@@ -104,7 +105,7 @@ public class IsAppRunningTaskUtils {
     }
 
     /**
-     * 判断是否有用权限
+     * 判断是查看使用应用使用情况的权限
      *
      * @param context 上下文参数
      */
@@ -124,7 +125,7 @@ public class IsAppRunningTaskUtils {
 
     /**
      * 方法6：无意中看到乌云上有人提的一个漏洞，Linux系统内核会把process进程信息保存在/proc目录下，使用Shell命令去获取的他，再根据进程的属性判断是否为前台
-     *
+     * 判断app是否在前台
      * @param packageName 需要检查是否位于栈顶的App的包名
      */
     public static boolean getLinuxCoreInfo(Context context, String packageName) {
@@ -139,6 +140,12 @@ public class IsAppRunningTaskUtils {
 
     }
 
+    /**
+     * 判断app是否在前台
+     * @param processes
+     * @param packageName
+     * @return
+     */
     public static boolean getLinuxCoreInfo(List<AndroidAppProcess> processes, String packageName) {
         if (processes != null && processes.size() > 0)
             for (AndroidAppProcess appProcess : processes) {
