@@ -4,19 +4,35 @@ import android.Manifest;
 import android.annotation.TargetApi;
 import android.app.ActivityManager;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.pm.ActivityInfo;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.FeatureInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
+import android.content.res.AssetManager;
+import android.content.res.Resources;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.os.PowerManager;
 import android.support.annotation.NonNull;
 import android.support.annotation.RequiresPermission;
 import android.text.TextUtils;
+import android.util.DisplayMetrics;
 
+import com.renkuo.personal.utilslibrary.log.QLog;
+
+import java.io.File;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Type;
+import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -369,6 +385,219 @@ public final class PackageUtils {
         } catch (Throwable e) {
             return packageManager.getDefaultActivityIcon();
         }
+    }
+
+    /**
+     * 通过反射加载安装包Resources
+     */
+    public static Resources getApkResByRefrect(Context context, String apkFilePath) {
+        Method addAssetPathMethod = null;
+        Object instance = null;
+        Class<?> clazz = null;
+        Resources apkRes = null;
+        try {
+            clazz = Class.forName("android.content.res.AssetManager");
+            instance = clazz.newInstance();
+            addAssetPathMethod = clazz.getMethod("addAssetPath", String.class);
+            addAssetPathMethod.invoke(instance, apkFilePath);
+            Resources res = context.getResources();
+            apkRes = new Resources((AssetManager) instance, res.getDisplayMetrics(), res.getConfiguration());
+        } catch (Throwable e) {
+            QLog.e("Class.forName(\"android.content.res.AssetManager\") error", e);
+        }
+        return apkRes;
+    }
+
+    /**
+     * 判断是否为系统应用
+     * @param context
+     * @param packageName
+     * @return false 非系统应用  true 系统应用
+     * @throws NameNotFoundException
+     */
+    public static boolean isSystemApp(Context context, String packageName) throws NameNotFoundException {
+        PackageManager pm = getPackageManager(context);
+        ApplicationInfo applicationInfo = pm.getApplicationInfo(packageName, PackageManager.GET_META_DATA);
+        final List<Map<String, String>> bootLst = new ArrayList<>();
+        if ((applicationInfo.flags & ApplicationInfo.FLAG_SYSTEM) == 0) {//非系统应用
+            return false;
+        }else {
+            return true;
+        }
+    }
+
+    /**
+     * 获取自启非系统应用
+     * @param appList
+     * @return
+     */
+    public static List<Map<String, String>> getStartUpApps(List<ApplicationInfo> appList) {
+        final List<Map<String, String>> bootLst = new ArrayList<>();
+        for (ApplicationInfo packageInfo : appList) {
+            if ((packageInfo.flags & ApplicationInfo.FLAG_SYSTEM) == 0) {//非系统应用
+                Map<String, String> map = parsePackageItem(packageInfo.sourceDir);
+                if (map != null && map.size() > 0)
+                    bootLst.add(map);
+            }
+        }
+        return bootLst;
+    }
+
+    public static Map<String, String> parsePackageItem(String apkPath) {
+        Map<String, String> item = null;
+        try {
+            Class<?> clz_PackageParser = Class.forName("android.content.pm.PackageParser");
+            if (null == clz_PackageParser) {
+                return null;
+            }
+            Class<?> clz_Package = Class.forName("android.content.pm.PackageParser$Package");
+            if (null == clz_Package) {
+                return null;
+            }
+            Class<?> clz_Activity = Class.forName("android.content.pm.PackageParser$Activity");
+            if (null == clz_Activity) {
+                return null;
+            }
+            Class<?> clz_Component = Class.forName("android.content.pm.PackageParser$Component");
+            if (null == clz_Component)
+                return null;
+            Object obj_PackageParser = buildPackageParser(clz_PackageParser, apkPath);
+            QLog.e(obj_PackageParser);
+            if (null == obj_PackageParser) {
+                return null;
+            }
+            Object mPkg = buildInvokePackageObj(clz_PackageParser, obj_PackageParser, apkPath);
+            if (null == mPkg) {
+//                met_parsePackage.setAccessible(false);
+                return null;
+            }
+            Field fld_receivers = clz_Package.getDeclaredField("receivers");
+            QLog.e(fld_receivers);
+            if (fld_receivers == null) {
+                return null;
+            }
+            fld_receivers.setAccessible(true);
+            Type tp_receivers = fld_receivers.getGenericType();
+            QLog.e(tp_receivers);
+            if (tp_receivers == null) {
+                return null;
+            }
+            Object obj_receivers = fld_receivers.get(mPkg);
+            QLog.e(obj_receivers);
+            if (obj_receivers == null) {
+                return null;
+            }
+            Field fld_intents = clz_Component.getDeclaredField("intents");
+            fld_intents.setAccessible(true);
+            QLog.e(fld_intents);
+            Field fld_info = clz_Activity.getDeclaredField("info");
+
+
+            ArrayList<?> list_receivers = (ArrayList<?>) obj_receivers;
+            if (list_receivers != null && list_receivers.size() > 0) {
+                for (int i = 0; i < list_receivers.size(); i++) {
+                    Object obj_Activity = list_receivers.get(i);
+                    if (obj_Activity == null) {
+                        continue;
+                    }
+                    Object obj_intents = fld_intents.get(obj_Activity);
+                    ArrayList<?> list_intents = (ArrayList<?>) obj_intents;
+                    for (int j = 0; list_intents != null && j < list_intents.size(); j++) {
+                        Object obj = list_intents.get(j);
+                        if (obj == null)
+                            continue;
+                        IntentFilter filter = (IntentFilter) obj;
+                        for (int k = 0; k < filter.countActions(); k++) {
+                            if (TextUtils.equals(filter.getAction(k), Intent.ACTION_BOOT_COMPLETED)) {
+                                ActivityInfo ai = (ActivityInfo) fld_info.get(obj_Activity);
+                                if (ai == null) {
+                                    continue;
+                                }
+                                if (item == null) {
+                                    item = new IdentityHashMap<>();
+                                }
+//                                QLog.i("packageName:" + ai.packageName + "  receiverName:" + ai.name);
+                                item.put(new String(ai.packageName), ai.name);
+//                                map.put(new String(ai.packageName), ai.name);
+//                                mReceiversAndService.add(ai.name);
+//                                QLog.i(filter.getAction(k));
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+
+        } catch (Exception e) {
+            QLog.e(e);
+        }
+        return item;
+    }
+
+    private static Object buildPackageParser(Class<?> packageParser, String archiveSourcePath) {
+        Constructor constructor = null;
+        Object packageParserObj = null;
+        try {
+            constructor = packageParser.getConstructor(new Class[]{String.class});
+            constructor.setAccessible(true);
+            packageParserObj = constructor.newInstance(new Object[]{archiveSourcePath});
+        } catch (Exception e) {
+            try {
+                constructor = packageParser.getConstructor();
+                constructor.setAccessible(true);
+                packageParserObj = constructor.newInstance();
+            } catch (Exception e1) {
+                QLog.e(e1);
+            }
+        }
+        return packageParserObj;
+    }
+
+    private static Object buildInvokePackageObj(Class<?> clz_PackageParser, Object obj_PackageParser, String archiveSourcePath) {
+        Method met_parsePackage = null;
+        final File sourceFile = new File(archiveSourcePath);
+
+        try {
+            met_parsePackage = clz_PackageParser.getDeclaredMethod("parsePackage", new Class<?>[]{File.class, String.class, DisplayMetrics.class, int.class});
+            if (null == met_parsePackage) {
+                return null;
+            }
+            met_parsePackage.setAccessible(true);
+            DisplayMetrics mMetrics = new DisplayMetrics();
+            mMetrics.setToDefaults();
+            return met_parsePackage.invoke(obj_PackageParser, sourceFile, null, mMetrics, 0);
+
+        } catch (Exception e) {
+            try {
+                met_parsePackage = clz_PackageParser.getDeclaredMethod("parsePackage", new Class<?>[]{File.class, int.class});
+                if (null == met_parsePackage) {
+                    return null;
+                }
+                met_parsePackage.setAccessible(true);
+                return met_parsePackage.invoke(obj_PackageParser, new Object[]{sourceFile, 0});
+
+            } catch (Exception e1) {
+                QLog.e(e1);
+                return null;
+            }
+        }
+
+    }
+
+    /**
+     * 获取App权限
+     */
+    public static String[] getAppPermissions(Context context, String packageName) {
+        if (context == null) return new String[0];
+
+        PackageManager pManager = context.getPackageManager();
+        try {
+            return pManager.getPackageInfo(packageName, PackageManager.GET_PERMISSIONS).requestedPermissions;
+        } catch (NameNotFoundException e) {
+            QLog.e(e);
+        }
+        return new String[0];
     }
 
 
